@@ -11,12 +11,16 @@ import br.com.tecloja.api.repository.*;
 import br.com.tecloja.api.service.PedidoService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @Service
 public class PedidoServiceImpl implements PedidoService {
+
+    private static final Logger log = LoggerFactory.getLogger(PedidoServiceImpl.class);
 
     private final PedidoRepository pedidoRepository;
     private final ClienteRepository clienteRepository;
@@ -32,6 +36,8 @@ public class PedidoServiceImpl implements PedidoService {
     @Override
     @Transactional // Inicia uma transação ativa. Qualquer erro causará rollback automático do estoque!
     public PedidoDTO realizarPedido(PedidoFormDTO form) {
+        log.info("Iniciando faturamento de pedido para o cliente ID: {}", form.clienteId());
+
         // 1. Validar Cliente
         Cliente cliente = clienteRepository.findById(form.clienteId())
             .orElseThrow(() -> new ResourceNotFoundException("Cliente não encontrado com o ID: " + form.clienteId()));
@@ -49,6 +55,8 @@ public class PedidoServiceImpl implements PedidoService {
 
             // Regra Crítica de Banco de Dados/Negócio: Validação de Estoque
             if (produto.getEstoque() < itemForm.quantidade()) {
+                log.warn("Falha no checkout: estoque insuficiente para o produto '{}' (ID: {}). Solicitado: {}, Disponível: {}", 
+                    produto.getNome(), produto.getId(), itemForm.quantidade(), produto.getEstoque());
                 throw new BusinessException(String.format(
                     "Estoque insuficiente para o produto '%s'. Disponível: %d, Solicitado: %d.",
                     produto.getNome(), produto.getEstoque(), itemForm.quantidade()
@@ -71,6 +79,7 @@ public class PedidoServiceImpl implements PedidoService {
 
         // 4. Salvar Pedido e Itens em cascata
         Pedido pedidoSalvo = pedidoRepository.save(pedido);
+        log.info("Pedido ID: {} faturado com sucesso para o cliente ID: {}.", pedidoSalvo.getId(), cliente.getId());
 
         // 5. Retornar DTO faturado
         return PedidoMapper.toDTO(pedidoSalvo);

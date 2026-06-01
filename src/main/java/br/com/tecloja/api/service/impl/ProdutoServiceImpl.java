@@ -29,6 +29,7 @@ public class ProdutoServiceImpl implements ProdutoService {
     @Transactional(readOnly = true)
     public List<ProdutoDTO> listarTodos() {
         return produtoRepository.findAll().stream()
+            .filter(Produto::isAtivo)
             .map(ProdutoMapper::toDTO)
             .collect(Collectors.toList());
     }
@@ -37,14 +38,16 @@ public class ProdutoServiceImpl implements ProdutoService {
     @Transactional(readOnly = true)
     public ProdutoDTO buscarPorId(Long id) {
         Produto produto = produtoRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado com o ID: " + id));
-        return ProdutoMapper::toDTO(produto);
+            .filter(Produto::isAtivo)
+            .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado ou inativo com o ID: " + id));
+        return ProdutoMapper.toDTO(produto);
     }
 
     @Override
     @Transactional(readOnly = true)
     public List<ProdutoDTO> buscarPorCategoria(Long categoriaId) {
         return produtoRepository.findByCategoriaId(categoriaId).stream()
+            .filter(Produto::isAtivo)
             .map(ProdutoMapper::toDTO)
             .collect(Collectors.toList());
     }
@@ -53,6 +56,7 @@ public class ProdutoServiceImpl implements ProdutoService {
     @Transactional(readOnly = true)
     public List<ProdutoDTO> pesquisarPorNome(String busca) {
         return produtoRepository.pesquisarPorNome(busca).stream()
+            .filter(Produto::isAtivo)
             .map(ProdutoMapper::toDTO)
             .collect(Collectors.toList());
     }
@@ -71,7 +75,8 @@ public class ProdutoServiceImpl implements ProdutoService {
     @Transactional
     public ProdutoDTO atualizar(Long id, ProdutoFormDTO form) {
         Produto produto = produtoRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado com o ID: " + id));
+            .filter(Produto::isAtivo)
+            .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado ou inativo com o ID: " + id));
         
         Categoria categoria = categoriaRepository.findById(form.categoriaId())
             .orElseThrow(() -> new ResourceNotFoundException("Categoria não encontrada com o ID: " + form.categoriaId()));
@@ -90,7 +95,11 @@ public class ProdutoServiceImpl implements ProdutoService {
     @Transactional
     public void deletar(Long id) {
         Produto produto = produtoRepository.findById(id)
-            .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado com o ID: " + id));
-        produtoRepository.delete(produto);
+            .filter(Produto::isAtivo)
+            .orElseThrow(() -> new ResourceNotFoundException("Produto não encontrado ou inativo com o ID: " + id));
+        
+        // Em vez de deletar fisicamente, inativamos o produto (Soft Delete)
+        produto.setAtivo(false);
+        produtoRepository.save(produto);
     }
 }
